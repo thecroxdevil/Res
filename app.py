@@ -2,6 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import os
 import time
+import requests
 
 # Set page config for wider layout
 st.set_page_config(page_title="AI Resume Assistant", layout="wide", initial_sidebar_state="collapsed")
@@ -98,6 +99,22 @@ def load_file(uploaded_file):
     """Loads the content of an uploaded file."""
     return uploaded_file.read().decode("utf-8") if uploaded_file else None
 
+# Function to load file content from Hugging Face Space
+def load_hf_file(filename):
+    """Loads file content from the Hugging Face Space."""
+    repo_name = os.environ.get("REPO_NAME")
+    if not repo_name:
+        st.error("REPO_NAME environment variable not set. Please set it in your Hugging Face space settings.")
+        return None
+    url = f"https://huggingface.co/spaces/{repo_name}/raw/{filename}"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.text
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error loading {filename} from Hugging Face Space: {e}")
+        return None
+
 # Function to create a message with copy button
 def display_copyable_output(output_text, title):
     output_id = f"output_{hash(output_text)}"
@@ -107,7 +124,7 @@ def display_copyable_output(output_text, title):
         <h4>{title} <button class="copy-button" onclick="copyToClipboard('{output_id}')">
             <i class="material-icons">content_copy</i> Copy
         </button></h4>
-        <pre id="{output_id}" style="white-space: pre-wrap;">{output_text}</pre>
+        <pre id="{output_id}" style="white-space: pre-wrap;"><code id="{output_id}">{output_text}</code></pre>
     </div>
 
     <script>
@@ -157,10 +174,10 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 if "resume_latex" not in st.session_state:
-    st.session_state.resume_latex = "\\documentclass{article}\\begin{document}Your default resume here.\\end{document}"
+    st.session_state.resume_latex = load_hf_file("default_resume.tex") or "\\documentclass{article}\\begin{document}Default Resume Content.\\end{document}"
 
 if "cover_letter_template_latex" not in st.session_state:
-    st.session_state.cover_letter_template_latex = "\\documentclass{letter}\\begin{document}Your default cover letter template here.\\end{document}"
+    st.session_state.cover_letter_template_latex = load_hf_file("default_cover_letter.tex") or "\\documentclass{letter}\\begin{document}Default Cover Letter Content.\\end{document}"
 
 # Add a flag to control rerun
 if "needs_rerun" not in st.session_state:
@@ -185,9 +202,13 @@ with st.container():
 
             if resume_file:
                 st.session_state.resume_latex = load_file(resume_file)
+            else:
+                st.session_state.resume_latex = load_hf_file("default_resume.tex") or "\\documentclass{article}\\begin{document}Default Resume Content.\\end{document}"
 
             if cover_letter_file:
                 st.session_state.cover_letter_template_latex = load_file(cover_letter_file)
+            else:
+                st.session_state.cover_letter_template_latex = load_hf_file("default_cover_letter.tex") or "\\documentclass{letter}\\begin{document}Default Cover Letter Content.\\end{document}"
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -295,4 +316,3 @@ if "results" in st.session_state and len(st.session_state.results) > 0:
 st.markdown("""
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 """, unsafe_allow_html=True)
-    
