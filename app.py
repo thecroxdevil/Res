@@ -1,7 +1,7 @@
 import streamlit as st
 
 # Try accessing a custom secret
-custom_value = st.secrets.get("CUSTOM_SECRET_KEY", None)
+custom_value = st.secrets.get("HF_TOKEN", None)
 
 if custom_value:
     st.write(f"Custom Secret Value: {custom_value}")
