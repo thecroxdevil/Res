@@ -1,8 +1,9 @@
 import gradio as gr
 import google.generativeai as genai
+import os
 
 # Get API key from Hugging Face Secrets
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Configure Google Gemini API
 genai.configure(api_key=GEMINI_API_KEY)
