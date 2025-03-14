@@ -204,14 +204,16 @@ jd = st.text_area("", default_jd, height=100)
 
 # Functions for AI processing
 def modify_resume(jd, resume_latex):
-    """Modifies the resume based on the job description."""
+    """Modifies the provided resume based on the job description."""
     model = genai.GenerativeModel('gemini-2.0-flash')
     prompt = f"""
-    You are an expert resume editor. Modify the resume below to align with the job description.
+    You are an expert resume editor. Modify the following resume to align with the job description.
     Job Description:
     {jd}
     Resume (LaTeX):
     {resume_latex}
+
+    Make sure to use the information and structure from the provided resume and only modify it to better fit the job description.
     """
     response = model.generate_content(prompt)
     return response.text
@@ -227,6 +229,8 @@ def generate_cover_letter(jd, modified_resume_latex, cover_letter_template_latex
     {modified_resume_latex}
     Cover Letter Template:
     {cover_letter_template_latex}
+
+    Use the style and structure from the cover letter template.
     """
     response = model.generate_content(prompt)
     return response.text
@@ -291,3 +295,4 @@ if "results" in st.session_state and len(st.session_state.results) > 0:
 st.markdown("""
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 """, unsafe_allow_html=True)
+    
