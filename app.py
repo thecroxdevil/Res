@@ -1,6 +1,6 @@
 import streamlit as st
 
-# Test if the secret is available
+# Try accessing a custom secret
 custom_value = st.secrets.get("CUSTOM_SECRET_KEY", None)
 
 if custom_value:
