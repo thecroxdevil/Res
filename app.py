@@ -2,7 +2,7 @@ import gradio as gr
 import google.generativeai as genai
 import os
 
-# Get API key from Hugging Face Secrets (Environment Variable)
+# Get API key from Hugging Face Secrets
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Configure Google Gemini API
@@ -20,11 +20,12 @@ def chat_with_gemini(prompt):
     except Exception as e:
         return f"Error: {str(e)}"
 
-# Create Gradio UI
-gr.Interface(
-    fn=chat_with_gemini,  # Function to call
-    inputs="text",         # User inputs text
-    outputs="text",        # AI outputs text
-    title="Chat with Gemini AI",
-    description="Enter a message and let Gemini AI respond."
-).launch()
+# Launch Gradio app
+if __name__ == "__main__":
+    gr.Interface(
+        fn=chat_with_gemini,
+        inputs="text",
+        outputs="text",
+        title="Chat with Gemini AI",
+        description="Enter a message and let Gemini AI respond."
+    ).launch()
