@@ -24,9 +24,24 @@ st.title("📄 AI Resume & Cover Letter Generator")
 default_jd = """Software Engineer: Looking for a software engineer with 5+ years of experience in Python and cloud technologies. Experience with AWS and Docker is a must."""
 jd = st.text_area("Paste the Job Description:", default_jd, height=150)
 
-# File Uploads
-resume_file = st.file_uploader("Upload Resume (LaTeX file)", type=["tex"])
-cover_letter_template_file = st.file_uploader("Upload Cover Letter Template (LaTeX file)", type=["tex"])
+# Option to Use Default Templates or Upload New Ones
+use_default = st.radio("Do you want to use the default resume and cover letter template?", ("Yes", "No"))
+
+resume_latex = ""
+cover_letter_template_latex = ""
+
+if use_default == "No":
+    resume_file = st.file_uploader("Upload Resume (LaTeX file)", type=["tex"])
+    cover_letter_template_file = st.file_uploader("Upload Cover Letter Template (LaTeX file)", type=["tex"])
+    
+    if resume_file and cover_letter_template_file:
+        resume_latex = load_file(resume_file)
+        cover_letter_template_latex = load_file(cover_letter_template_file)
+    else:
+        st.warning("Please upload both files if you don't want to use defaults.")
+else:
+    resume_latex = "\\documentclass{article}\\begin{document}Your default resume here.\\end{document}"
+    cover_letter_template_latex = "\\documentclass{letter}\\begin{document}Your default cover letter template here.\\end{document}"
 
 def modify_resume(jd, resume_latex):
     """Modifies the resume based on the job description."""
@@ -59,11 +74,8 @@ def generate_cover_letter(jd, modified_resume_latex, cover_letter_template_latex
     response = model.generate_content(prompt)
     return response.text
 
-if st.button("Generate Resume & Cover Letter"):
-    if resume_file and cover_letter_template_file:
-        resume_latex = load_file(resume_file)
-        cover_letter_template_latex = load_file(cover_letter_template_file)
-        
+if st.button("Send"):
+    if resume_latex and cover_letter_template_latex:
         modified_resume = modify_resume(jd, resume_latex)
         cover_letter = generate_cover_letter(jd, modified_resume, cover_letter_template_latex)
         
@@ -76,4 +88,4 @@ if st.button("Generate Resume & Cover Letter"):
         st.download_button("Download Modified Resume", modified_resume, file_name="modified_resume.tex")
         st.download_button("Download Cover Letter", cover_letter, file_name="cover_letter.tex")
     else:
-        st.error("Please upload both the resume and cover letter template.")
+        st.error("Please provide a valid resume and cover letter template.")
