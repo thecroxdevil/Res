@@ -88,7 +88,7 @@ def call_ai_model(prompt, ai_model_choice):
             genai.configure(api_key=google_api_key)
             
             # Then create the model without passing the api_key parameter
-            gemini_model = genai.GenerativeModel(model_name="gemini-2.0-flash")
+            gemini_model = genai.GenerativeModel(model_name="gemini-pro")
             
             response = gemini_model.generate_content(prompt)
             
@@ -105,6 +105,7 @@ def call_ai_model(prompt, ai_model_choice):
 
 
 
+
     elif ai_model_choice == "deepseek":
         # --- DEEPSEEK API SIMULATION REMAINS --- (Replace with real Deepseek API integration when available)
         if "resume modification" in prompt.lower():
@@ -118,14 +119,15 @@ def call_ai_model(prompt, ai_model_choice):
 
 
 def modify_resume_agent(jd_text, resume_latex_code, resume_template_latex_code, ai_model_choice, resume_agent_prompt):
-    # Add reference_template to the formatting parameters
-    prompt = resume_agent_prompt.format(
+    # Make the prompt more explicit about output format
+    enhanced_prompt = resume_agent_prompt.format(
         jd_text=jd_text, 
-        resume_latex_code=resume_latex_code,
-        reference_template=resume_template_latex_code
-    )
-    modified_content = call_ai_model(prompt, ai_model_choice)
+        resume_latex_code=resume_latex_code
+    ) + "\n\nIMPORTANT: OUTPUT ONLY THE MODIFIED LATEX CODE. NO EXPLANATIONS OR CONVERSATION."
+    
+    modified_content = call_ai_model(enhanced_prompt, ai_model_choice)
     return modified_content
+
 
 
 def cover_letter_agent(jd_text, modified_resume_latex_code, cover_letter_template_latex_code, ai_model_choice, cover_letter_agent_prompt):
@@ -135,7 +137,15 @@ def cover_letter_agent(jd_text, modified_resume_latex_code, cover_letter_templat
     return modified_cover_letter_latex
 
 
-def process_input(jd_input, resume_file, cover_letter_template_file, ai_model_choice, replace_resume_template, replace_coverletter_template, resume_agent_prompt_input, cover_letter_agent_prompt_input):   
+def process_input(jd_input, resume_file, cover_letter_template_file, ai_model_choice, replace_resume_template, replace_coverletter_template, resume_agent_prompt_input, cover_letter_agent_prompt_input):
+    # [existing code]
+    
+    # --- Agent Calls ---
+    modified_resume_latex_code = modify_resume_agent(jd_input, resume_latex_code, load_text_file(RESUME_TEMPLATE_FILE) if not resume_file else resume_latex_code, ai_model_choice, resume_agent_prompt)
+    cover_letter_latex_code = cover_letter_agent(jd_input, modified_resume_latex_code, cover_letter_template_latex_code, ai_model_choice, cover_letter_agent_prompt)
+
+    return modified_resume_latex_code, cover_letter_latex_code  # Remove the ellipsis
+  
     
     # --- File Handling ---
     if resume_file and hasattr(resume_file, 'read'): # CHECK for .read() method
