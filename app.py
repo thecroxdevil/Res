@@ -69,7 +69,7 @@ def load_prompts():
 @st.cache_resource
 def initialize_gemini_api():
     try:
-        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+        genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
     except Exception as e:
         st.error(f"Error initializing Gemini API: {e}")
 
@@ -78,7 +78,7 @@ initialize_gemini_api()
 # Function to customize resume with Gemini
 def customize_resume(resume_template, job_description, prompt):
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(
             f"{prompt}\n\nJob Description:\n{job_description}\n\nResume Template:\n{resume_template}"
         )
