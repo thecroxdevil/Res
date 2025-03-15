@@ -118,9 +118,15 @@ def call_ai_model(prompt, ai_model_choice):
 
 
 def modify_resume_agent(jd_text, resume_latex_code, resume_template_latex_code, ai_model_choice, resume_agent_prompt):
-    prompt = resume_agent_prompt.format(jd_text=jd_text, resume_latex_code=resume_latex_code)
+    # Add reference_template to the formatting parameters
+    prompt = resume_agent_prompt.format(
+        jd_text=jd_text, 
+        resume_latex_code=resume_latex_code,
+        reference_template=resume_template_latex_code
+    )
     modified_content = call_ai_model(prompt, ai_model_choice)
     return modified_content
+
 
 def cover_letter_agent(jd_text, modified_resume_latex_code, cover_letter_template_latex_code, ai_model_choice, cover_letter_agent_prompt):
     prompt = cover_letter_agent_prompt.format(jd_text=jd_text, modified_resume_latex_code=modified_resume_latex_code, cover_letter_template_latex_code=cover_letter_template_latex_code)
