@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 import google.generativeai as genai
-from deepseek import DeepSeekAPI
+from deepseek_api import DeepSeekAPI
 import json
 import base64
 
