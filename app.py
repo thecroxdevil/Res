@@ -84,7 +84,7 @@ def call_ai_model(prompt, ai_model_choice):
             if not google_api_key:
                 return "Error: GOOGLE_API_KEY secret not found. Please set it in Hugging Face Space Secrets."
 
-            gemini_model = GenerativeModel(model_name="gemini-pro", api_key=google_api_key) # Use 'gemini-pro' or your model name
+            gemini_model = GenerativeModel(model_name="gemini-2.0-flash-thinking-exp 01-21", api_key=google_api_key) # Use 'gemini-pro' or your model name
             response = gemini_model.generate_content(prompt)
 
             if response and response.text:
