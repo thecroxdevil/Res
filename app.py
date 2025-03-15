@@ -123,12 +123,12 @@ def cover_letter_agent(jd_text, modified_resume_latex_code, cover_letter_templat
 
 def process_input(jd_input, resume_file, cover_letter_template_file, ai_model_choice, replace_resume_template, replace_coverletter_template, resume_agent_prompt_input, cover_letter_agent_prompt_input):
     # --- File Handling ---
-    if resume_file:
+    if resume_file and hasattr(resume_file, 'read'): # CHECK for .read() method
         resume_latex_code_content = resume_file.read().decode('utf-8')
         if replace_resume_template:
             save_latex_file(RESUME_TEMPLATE_FILE, resume_latex_code_content)
         resume_latex_code = resume_latex_code_content
-    else:
+    else: # This block now executes if resume_file is falsy OR it doesn't have .read()
         resume_latex_code = load_text_file(RESUME_TEMPLATE_FILE)
 
     if cover_letter_template_file:
