@@ -1,2 +1,2 @@
-gradio>=3.36.1
+gradio>=5.21.0
 google-generativeai>=0.3.0
