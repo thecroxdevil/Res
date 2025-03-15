@@ -1,9 +1,7 @@
 import streamlit as st
 import os
 import google.generativeai as genai
-from deepseek-api import DeepSeekAPI
 import json
-import base64
 
 # Configuration and setup
 st.set_page_config(page_title="AI Resume Customizer", layout="wide")
@@ -67,24 +65,15 @@ def load_prompts():
     except FileNotFoundError:
         pass
 
-# Initialize APIs
+# Initialize Gemini API
 @st.cache_resource
-def initialize_apis():
-    # Initialize Gemini API
+def initialize_gemini_api():
     try:
         genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
     except Exception as e:
         st.error(f"Error initializing Gemini API: {e}")
-    
-    # Initialize DeepSeek API
-    try:
-        deepseek_api = DeepSeekAPI(api_key=os.environ.get("DEEPSEEK_API_KEY"))
-        return deepseek_api
-    except Exception as e:
-        st.error(f"Error initializing DeepSeek API: {e}")
-        return None
 
-deepseek_api = initialize_apis()
+initialize_gemini_api()
 
 # Function to customize resume with Gemini
 def customize_resume(resume_template, job_description, prompt):
@@ -98,21 +87,16 @@ def customize_resume(resume_template, job_description, prompt):
         st.error(f"Error customizing resume with Gemini: {e}")
         return None
 
-# Function to generate cover letter with DeepSeek
+# Function to generate cover letter with Gemini
 def generate_cover_letter(resume, job_description, prompt, template):
     try:
-        response = deepseek_api.chat.completions.create(
-            model="deepseek-r1-chat",
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": f"Job Description:\n{job_description}\n\nResume:\n{resume}\n\nCover Letter Template:\n{template}"}
-            ],
-            temperature=0.7,
-            max_tokens=2048
+        model = genai.GenerativeModel('gemini-1.5-pro')
+        response = model.generate_content(
+            f"{prompt}\n\nJob Description:\n{job_description}\n\nResume:\n{resume}\n\nCover Letter Template:\n{template}"
         )
-        return response.choices[0].message.content
+        return response.text
     except Exception as e:
-        st.error(f"Error generating cover letter with DeepSeek: {e}")
+        st.error(f"Error generating cover letter with Gemini: {e}")
         return None
 
 # Load saved prompts on app startup
