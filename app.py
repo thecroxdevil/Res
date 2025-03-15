@@ -51,13 +51,12 @@ Your goal is to write a cover letter based on the provided Job Description and t
 **Output:** (Only Cover Letter Text - to be placed inside the template)
 """
 
-# --- Helper Functions ---
 def load_text_file(filepath, default_content=""):
     if os.path.exists(filepath):
         with open(filepath, 'r', encoding='utf-8') as f:
             return f.read()
     else:
-        return default_content
+        return ""  # Return an EMPTY STRING if file doesn't exist
 
 def save_text_file(filepath, content):
     with open(filepath, 'w', encoding='utf-8') as f:
