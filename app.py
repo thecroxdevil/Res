@@ -1,5 +1,7 @@
-import gradio as gr
 import os
+os.environ['GRADIO_CACHE_DIR'] = '/data/gradio_cache' # Or just '/data' or a subdir within it
+import gradio as gr
+# ... (rest of your app.py code) ...
 
 # --- Configuration and File Paths ---
 RESUME_TEMPLATE_FILE = "user_resume.tex"
