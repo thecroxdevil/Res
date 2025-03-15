@@ -1,209 +1,263 @@
+import streamlit as st
 import os
-os.environ['GRADIO_CACHE_DIR'] = '/data/gradio_cache' # Or just '/data' or a subdir within it
-import gradio as gr
-# ... (rest of your app.py code) ...
+import google.generativeai as genai
+from deepseek import DeepSeekAPI
+import json
+import base64
 
-# --- Configuration and File Paths ---
-RESUME_TEMPLATE_FILE = "user_resume.tex"
-COVER_LETTER_TEMPLATE_FILE = "cover_letter_template.tex"
-RESUME_PROMPT_FILE = "resume_agent_prompt.txt"
-COVER_LETTER_PROMPT_FILE = "cover_letter_agent_prompt.txt"
-DEFAULT_RESUME_PROMPT = """
-You are a resume modification assistant.
-Your goal is to revise the provided resume content to be more relevant to the given Job Description.
+# Configuration and setup
+st.set_page_config(page_title="AI Resume Customizer", layout="wide")
 
-**Job Description:**
-{jd_text}
+# Initialize session state variables if they don't exist
+if 'resume_prompt' not in st.session_state:
+    st.session_state.resume_prompt = """
+    You are a professional resume writer. Your task is to customize the provided resume template to match the job description.
+    Follow these guidelines:
+    1. Keep the LaTeX format exactly as is
+    2. Only modify content sections, not the formatting commands
+    3. Highlight relevant skills and experiences from the resume that match the job description
+    4. Be concise and professional
+    5. Maintain the same overall structure
+    6. Return ONLY the modified LaTeX code
+    """
 
-**Existing Resume Content (LaTeX):**
-{resume_latex_code}
+if 'cover_letter_prompt' not in st.session_state:
+    st.session_state.cover_letter_prompt = """
+    Create a professional cover letter based on the provided resume and job description. 
+    Follow these guidelines:
+    1. Keep the LaTeX format exactly as is
+    2. Only modify content sections, not the formatting commands
+    3. Highlight how the candidate's skills and experiences directly relate to the job requirements
+    4. Be persuasive, confident, and professional
+    5. Return ONLY the modified LaTeX code
+    """
 
-**Instructions:**
-1. Analyze the Job Description to identify key skills, keywords, and requirements.
-2. Compare these requirements to the content within the 'content sections' of the provided LaTeX resume (skills, experience, projects descriptions - do NOT change formatting commands).
-3. Modify the 'content sections' of the resume to emphasize skills and experiences relevant to the Job Description.
-4. Retain the original LaTeX template structure. Only replace the text content within the existing sections, not the LaTeX formatting commands or section headings.
-5. Ensure the output is valid LaTeX code and ONLY output the modified LaTeX code.  Do NOT include any extra text or explanations.
-
-**Output:** (Only Modified Resume LaTeX code)
-"""
-DEFAULT_COVER_LETTER_PROMPT = """
-You are a cover letter generation assistant.
-Your goal is to write a cover letter based on the provided Job Description and the applicant's Modified Resume.
-
-**Job Description:**
-{jd_text}
-
-**Modified Resume Content (LaTeX):**
-{modified_resume_latex_code}
-
-**Cover Letter Template (LaTeX structure):**
-{cover_letter_template_latex_code}
-
-**Instructions:**
-1. Analyze the Job Description to understand the company, role, required skills, and tone.
-2. Review the Modified Resume to identify the applicant's most relevant skills and experiences for this role.
-3. Write a compelling cover letter addressed to the hiring manager (if name is in JD, use it, otherwise use a general salutation like "Dear Hiring Manager").
-4. Highlight 2-3 key achievements or experiences from the resume that directly match the job requirements and company values (if discernible from JD).
-5. Express your enthusiasm for the role and company.
-6. Maintain a professional and enthusiastic tone.
-7.  Ensure the cover letter text fits into the provided LaTeX cover letter template structure.  ONLY provide the cover letter text itself.  Do NOT output the full LaTeX document, just the text content to be inserted into the template's body section.
-
-
-**Output:** (Only Cover Letter Text - to be placed inside the template)
-"""
-
-def load_text_file(filepath, default_content=""):
-    if os.path.exists(filepath):
-        with open(filepath, 'r', encoding='utf-8') as f:
+# Function to load templates from disk
+def load_template(template_type):
+    try:
+        file_path = f"templates/{template_type}_template.tex"
+        with open(file_path, "r") as f:
             return f.read()
-    else:
-        return ""  # Return an EMPTY STRING if file doesn't exist
+    except FileNotFoundError:
+        return ""
 
-def save_text_file(filepath, content):
-    with open(filepath, 'w', encoding='utf-8') as f:
+# Function to save templates to disk
+def save_template(template_type, content):
+    os.makedirs("templates", exist_ok=True)
+    with open(f"templates/{template_type}_template.tex", "w") as f:
         f.write(content)
 
-def load_latex_file(filepath): # Keeping this function as you might use it for initial template loading if needed.
-    return load_text_file(filepath) # Using text file load for simplicity here for Space demo.
+# Function to save prompts
+def save_prompts():
+    os.makedirs("prompts", exist_ok=True)
+    prompts = {
+        "resume_prompt": st.session_state.resume_prompt,
+        "cover_letter_prompt": st.session_state.cover_letter_prompt
+    }
+    with open("prompts/saved_prompts.json", "w") as f:
+        json.dump(prompts, f)
 
-def save_latex_file(filepath, latex_code): #  Keeping this too
-    save_text_file(filepath, latex_code)
+# Function to load prompts
+def load_prompts():
+    try:
+        with open("prompts/saved_prompts.json", "r") as f:
+            prompts = json.load(f)
+            st.session_state.resume_prompt = prompts.get("resume_prompt", st.session_state.resume_prompt)
+            st.session_state.cover_letter_prompt = prompts.get("cover_letter_prompt", st.session_state.cover_letter_prompt)
+    except FileNotFoundError:
+        pass
 
-def insert_content_into_latex_template(template_latex, content, placeholder="[COVER_LETTER_CONTENT_PLACEHOLDER]"):
-    return template_latex.replace(placeholder, content)
-
-def call_ai_model(prompt, ai_model_choice):
-    print(f"\n--- Calling {ai_model_choice.upper()} API --- Prompt:\n{prompt}\n---")
-
-    if ai_model_choice == "gemini":
-        try:
-            import google.generativeai as genai
-            
-            google_api_key = os.environ.get("GOOGLE_API_KEY")
-            if not google_api_key:
-                return "Error: GOOGLE_API_KEY secret not found. Please set it in Hugging Face Space Secrets."
-            
-            # Configure the API with your key first
-            genai.configure(api_key=google_api_key)
-            
-            # Then create the model without passing the api_key parameter
-            gemini_model = genai.GenerativeModel(model_name="gemini-pro")
-            
-            response = gemini_model.generate_content(prompt)
-            
-            if response and response.text:
-                ai_output_text = response.text
-            else:
-                return f"Gemini API Error: No text response. Response details: {response}"
-            return ai_output_text
-            
-        except ImportError:
-            return "Error: `google-generativeai` library not installed. Please add it to `requirements.txt`."
-        except Exception as e:
-            return f"Gemini API Error: {e}"
-
-
-
-
-    elif ai_model_choice == "deepseek":
-        # --- DEEPSEEK API SIMULATION REMAINS --- (Replace with real Deepseek API integration when available)
-        if "resume modification" in prompt.lower():
-            return "\\documentclass{article}\n\\begin{document}\n% SIMULATED DeepSeek Modified resume content based on JD\n\\section*{Projects} (DeepSeek - Projects emphasized based on JD)...\n\\section*{Awards} (DeepSeek - Awards relevant to JD)...\n\\end{document}"
-        elif "cover letter" in prompt.lower():
-            return "Dear Hiring Team,\n\nSIMULATED Cover letter from DeepSeek, highlighting project relevance... (DeepSeek - Cover Letter content).\n\nBest regards,\n[Your Name]"
-        else:
-            return "SIMULATED DeepSeek: Prompt type not recognized."
-    else:
-        return "Error: Invalid AI model choice."
-
-
-def modify_resume_agent(jd_text, resume_latex_code, resume_template_latex_code, ai_model_choice, resume_agent_prompt):
-    # Make the prompt more explicit about output format
-    enhanced_prompt = resume_agent_prompt.format(
-        jd_text=jd_text, 
-        resume_latex_code=resume_latex_code
-    ) + "\n\nIMPORTANT: OUTPUT ONLY THE MODIFIED LATEX CODE. NO EXPLANATIONS OR CONVERSATION."
+# Initialize APIs
+@st.cache_resource
+def initialize_apis():
+    # Initialize Gemini API
+    try:
+        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+    except Exception as e:
+        st.error(f"Error initializing Gemini API: {e}")
     
-    modified_content = call_ai_model(enhanced_prompt, ai_model_choice)
-    return modified_content
+    # Initialize DeepSeek API
+    try:
+        deepseek_api = DeepSeekAPI(api_key=os.environ.get("DEEPSEEK_API_KEY"))
+        return deepseek_api
+    except Exception as e:
+        st.error(f"Error initializing DeepSeek API: {e}")
+        return None
 
+deepseek_api = initialize_apis()
 
+# Function to customize resume with Gemini
+def customize_resume(resume_template, job_description, prompt):
+    try:
+        model = genai.GenerativeModel('gemini-1.5-pro')
+        response = model.generate_content(
+            f"{prompt}\n\nJob Description:\n{job_description}\n\nResume Template:\n{resume_template}"
+        )
+        return response.text
+    except Exception as e:
+        st.error(f"Error customizing resume with Gemini: {e}")
+        return None
 
-def cover_letter_agent(jd_text, modified_resume_latex_code, cover_letter_template_latex_code, ai_model_choice, cover_letter_agent_prompt):
-    prompt = cover_letter_agent_prompt.format(jd_text=jd_text, modified_resume_latex_code=modified_resume_latex_code, cover_letter_template_latex_code=cover_letter_template_latex_code)
-    cover_letter_content = call_ai_model(prompt, ai_model_choice)
-    modified_cover_letter_latex = insert_content_into_latex_template(cover_letter_template_latex_code, cover_letter_content)
-    return modified_cover_letter_latex
+# Function to generate cover letter with DeepSeek
+def generate_cover_letter(resume, job_description, prompt, template):
+    try:
+        response = deepseek_api.chat.completions.create(
+            model="deepseek-r1-chat",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"Job Description:\n{job_description}\n\nResume:\n{resume}\n\nCover Letter Template:\n{template}"}
+            ],
+            temperature=0.7,
+            max_tokens=2048
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        st.error(f"Error generating cover letter with DeepSeek: {e}")
+        return None
 
+# Load saved prompts on app startup
+load_prompts()
 
-def process_input(jd_input, resume_file, cover_letter_template_file, ai_model_choice, replace_resume_template, replace_coverletter_template, resume_agent_prompt_input, cover_letter_agent_prompt_input):
-    # [existing code]
+# UI Header
+st.title("AI Resume & Cover Letter Customizer")
+
+# Sidebar for templates and prompt settings
+with st.sidebar:
+    st.header("Templates & Settings")
     
-    # --- Agent Calls ---
-    modified_resume_latex_code = modify_resume_agent(jd_input, resume_latex_code, load_text_file(RESUME_TEMPLATE_FILE) if not resume_file else resume_latex_code, ai_model_choice, resume_agent_prompt)
-    cover_letter_latex_code = cover_letter_agent(jd_input, modified_resume_latex_code, cover_letter_template_latex_code, ai_model_choice, cover_letter_agent_prompt)
-
-    return modified_resume_latex_code, cover_letter_latex_code  # Remove the ellipsis
-  
+    # Template management
+    st.subheader("Resume Template")
     
-    # --- File Handling ---
-    if resume_file and hasattr(resume_file, 'read'): # CHECK for .read() method
-        resume_latex_code_content = resume_file.read().decode('utf-8')
-        if replace_resume_template:
-            save_latex_file(RESUME_TEMPLATE_FILE, resume_latex_code_content)
-        resume_latex_code = resume_latex_code_content
-    else: # This block now executes if resume_file is falsy OR it doesn't have .read()
-        resume_latex_code = load_text_file(RESUME_TEMPLATE_FILE)
-
-    if cover_letter_template_file and hasattr(cover_letter_template_file, 'read'): # ADDED hasattr CHECK here too!
-        cover_letter_template_latex_code = cover_letter_template_file.read().decode('utf-8')
-        if replace_coverletter_template:
-             save_latex_file(COVER_LETTER_TEMPLATE_FILE, cover_letter_template_latex_code)
-        cover_letter_template_latex_code = cover_letter_template_latex_code
-    else: # Execute if cover_letter_template_file is falsy OR doesn't have .read()
-        cover_letter_template_latex_code = load_text_file(COVER_LETTER_TEMPLATE_FILE)
-
-    # --- Prompt Handling ---
-    resume_agent_prompt = resume_agent_prompt_input if resume_agent_prompt_input else DEFAULT_RESUME_PROMPT
-    cover_letter_agent_prompt = cover_letter_agent_prompt_input if cover_letter_agent_prompt_input else DEFAULT_COVER_LETTER_PROMPT
-
-    save_text_file(RESUME_PROMPT_FILE, resume_agent_prompt)
-    save_text_file(COVER_LETTER_PROMPT_FILE, cover_letter_agent_prompt)
-
-    # --- Agent Calls ---
-    modified_resume_latex_code = modify_resume_agent(jd_input, resume_latex_code, load_text_file(RESUME_TEMPLATE_FILE) if not resume_file else resume_latex_code, ai_model_choice, resume_agent_prompt)
-    cover_letter_latex_code = cover_letter_agent(jd_input, modified_resume_latex_code, cover_letter_template_latex_code, ai_model_choice, cover_letter_agent_prompt)
-
-    return modified_resume_latex_code, cover_letter_latex_code
-
-# --- Gradio UI ---
-with gr.Blocks(title="AI Resume & Cover Letter Generator") as demo:
-    gr.Markdown("# AI Powered Resume & Cover Letter Generator")
-    gr.Markdown("Upload your Job Description (JD), Resume template, and Cover Letter template. Edit prompts below if needed. Click 'Generate' to get tailored Resume and Cover Letter.")
-
-    with gr.Accordion("Prompts (Edit & Pin)", open=False):
-        resume_agent_prompt_input = gr.TextArea(value=load_text_file(RESUME_PROMPT_FILE, DEFAULT_RESUME_PROMPT), lines=5, label="Resume Modification Agent Prompt")
-        cover_letter_agent_prompt_input = gr.TextArea(value=load_text_file(COVER_LETTER_PROMPT_FILE, DEFAULT_COVER_LETTER_PROMPT), lines=5, label="Cover Letter Generation Agent Prompt")
-
-    with gr.Row():
-        with gr.Column():
-            jd_input = gr.TextArea(lines=7, label="Job Description (JD)")
-            resume_file = gr.File(file_types=['.tex'], label="Upload Resume LaTeX Template (Optional - To use new template)")
-            replace_resume_template_checkbox = gr.Checkbox(label="Replace Existing Resume Template?", value=False)
-            cover_letter_template_file = gr.File(file_types=['.tex'], label="Upload Cover Letter LaTeX Template (Optional - To use new template)")
-            replace_coverletter_template_checkbox = gr.Checkbox(label="Replace Existing Cover Letter Template?", value=False)
-            ai_model_choice = gr.Dropdown(["gemini", "deepseek"], value="gemini", label="Choose AI Model") # Removed "(Simulated)"
-            generate_button = gr.Button("Generate Resume & Cover Letter")
-
-        with gr.Column():
-            modified_resume_output = gr.Code(label="Modified Resume (LaTeX Code)") # Removed language='latex'
-            cover_letter_output = gr.Code(label="Cover Letter (LaTeX Code)")     # Removed language='latex'
-
-    generate_button.click(
-        process_input,
-        inputs=[jd_input, resume_file, cover_letter_template_file, ai_model_choice, replace_resume_template_checkbox, replace_coverletter_template_checkbox, resume_agent_prompt_input, cover_letter_agent_prompt_input],
-        outputs=[modified_resume_output, cover_letter_output]
+    template_option = st.radio(
+        "Resume Template Option:",
+        ["Use saved template", "Upload new template"]
     )
+    
+    if template_option == "Upload new template":
+        resume_template_file = st.file_uploader("Upload Resume LaTeX Template", type=["tex"])
+        if resume_template_file is not None:
+            resume_template = resume_template_file.getvalue().decode("utf-8")
+            save_template("resume", resume_template)
+            st.success("Resume template saved!")
+        else:
+            resume_template = load_template("resume")
+    else:
+        resume_template = load_template("resume")
+        if not resume_template:
+            st.warning("No saved resume template found. Please upload one.")
+    
+    st.subheader("Cover Letter Template")
+    
+    cl_template_option = st.radio(
+        "Cover Letter Template Option:",
+        ["Use saved template", "Upload new template"]
+    )
+    
+    if cl_template_option == "Upload new template":
+        cl_template_file = st.file_uploader("Upload Cover Letter LaTeX Template", type=["tex"])
+        if cl_template_file is not None:
+            cl_template = cl_template_file.getvalue().decode("utf-8")
+            save_template("cover_letter", cl_template)
+            st.success("Cover letter template saved!")
+        else:
+            cl_template = load_template("cover_letter")
+    else:
+        cl_template = load_template("cover_letter")
+        if not cl_template:
+            st.warning("No saved cover letter template found. Please upload one.")
+    
+    # Prompt management
+    st.subheader("AI Prompts")
+    
+    st.text_area("Resume Customization Prompt", value=st.session_state.resume_prompt, 
+                height=200, key="resume_prompt_input", 
+                on_change=lambda: setattr(st.session_state, "resume_prompt", st.session_state.resume_prompt_input))
+    
+    st.text_area("Cover Letter Generation Prompt", value=st.session_state.cover_letter_prompt, 
+                height=200, key="cl_prompt_input", 
+                on_change=lambda: setattr(st.session_state, "cover_letter_prompt", st.session_state.cl_prompt_input))
+    
+    if st.button("Save Prompts"):
+        st.session_state.resume_prompt = st.session_state.resume_prompt_input
+        st.session_state.cover_letter_prompt = st.session_state.cl_prompt_input
+        save_prompts()
+        st.success("Prompts saved!")
 
-demo.launch()
+# Main area
+st.header("Job Description Input")
+job_description = st.text_area("Paste the job description here:", height=300)
+
+if st.button("Generate Customized Documents") and job_description:
+    if not resume_template:
+        st.error("Please upload or select a resume template first.")
+    elif not cl_template:
+        st.error("Please upload or select a cover letter template first.")
+    else:
+        with st.spinner("Customizing resume..."):
+            customized_resume = customize_resume(resume_template, job_description, st.session_state.resume_prompt)
+        
+        if customized_resume:
+            st.session_state.customized_resume = customized_resume
+            
+            with st.spinner("Generating cover letter..."):
+                cover_letter = generate_cover_letter(
+                    customized_resume, 
+                    job_description, 
+                    st.session_state.cover_letter_prompt,
+                    cl_template
+                )
+            
+            if cover_letter:
+                st.session_state.cover_letter = cover_letter
+                st.success("Documents generated successfully!")
+            else:
+                st.error("Failed to generate cover letter.")
+        else:
+            st.error("Failed to customize resume.")
+
+# Display results in tabs
+if 'customized_resume' in st.session_state and 'cover_letter' in st.session_state:
+    tab1, tab2 = st.tabs(["Customized Resume", "Cover Letter"])
+    
+    with tab1:
+        st.subheader("Customized Resume (LaTeX)")
+        st.code(st.session_state.customized_resume, language="latex")
+        
+        if st.button("Regenerate Resume"):
+            with st.spinner("Customizing resume..."):
+                customized_resume = customize_resume(resume_template, job_description, st.session_state.resume_prompt)
+            if customized_resume:
+                st.session_state.customized_resume = customized_resume
+                st.rerun()
+        
+        # Download button for resume
+        resume_download = st.download_button(
+            label="Download Resume LaTeX",
+            data=st.session_state.customized_resume,
+            file_name="customized_resume.tex",
+            mime="text/plain"
+        )
+    
+    with tab2:
+        st.subheader("Cover Letter (LaTeX)")
+        st.code(st.session_state.cover_letter, language="latex")
+        
+        if st.button("Regenerate Cover Letter"):
+            with st.spinner("Generating cover letter..."):
+                cover_letter = generate_cover_letter(
+                    st.session_state.customized_resume, 
+                    job_description, 
+                    st.session_state.cover_letter_prompt,
+                    cl_template
+                )
+            if cover_letter:
+                st.session_state.cover_letter = cover_letter
+                st.rerun()
+        
+        # Download button for cover letter
+        cl_download = st.download_button(
+            label="Download Cover Letter LaTeX",
+            data=st.session_state.cover_letter,
+            file_name="cover_letter.tex",
+            mime="text/plain"
+        )
