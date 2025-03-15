@@ -175,8 +175,8 @@ with gr.Blocks(title="AI Resume & Cover Letter Generator") as demo:
             generate_button = gr.Button("Generate Resume & Cover Letter")
 
         with gr.Column():
-            modified_resume_output = gr.Code(language='latex', label="Modified Resume (LaTeX Code)")
-            cover_letter_output = gr.Code(language='latex', label="Cover Letter (LaTeX Code)")
+            modified_resume_output = gr.Code(label="Modified Resume (LaTeX Code)") # Removed language='latex'
+            cover_letter_output = gr.Code(label="Cover Letter (LaTeX Code)")     # Removed language='latex'
 
     generate_button.click(
         process_input,
