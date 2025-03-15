@@ -78,25 +78,31 @@ def call_ai_model(prompt, ai_model_choice):
 
     if ai_model_choice == "gemini":
         try:
-            from google.generativeai import GenerativeModel
-
-            google_api_key = os.environ.get("GOOGLE_API_KEY") # Get API Key from Secrets
+            import google.generativeai as genai
+            
+            google_api_key = os.environ.get("GOOGLE_API_KEY")
             if not google_api_key:
                 return "Error: GOOGLE_API_KEY secret not found. Please set it in Hugging Face Space Secrets."
-
-            gemini_model = GenerativeModel(model_name="gemini-2.0-flash", api_key=google_api_key) # Use 'gemini-pro' or your model name
+            
+            # Configure the API with your key first
+            genai.configure(api_key=google_api_key)
+            
+            # Then create the model without passing the api_key parameter
+            gemini_model = genai.GenerativeModel(model_name="gemini-2.0-flash")
+            
             response = gemini_model.generate_content(prompt)
-
+            
             if response and response.text:
                 ai_output_text = response.text
             else:
-                return f"Gemini API Error: No text response. Response details: {response}" # More descriptive error
+                return f"Gemini API Error: No text response. Response details: {response}"
             return ai_output_text
-
+            
         except ImportError:
             return "Error: `google-generativeai` library not installed. Please add it to `requirements.txt`."
-        except Exception as e: # Catch other potential API errors
+        except Exception as e:
             return f"Gemini API Error: {e}"
+
 
 
     elif ai_model_choice == "deepseek":
@@ -123,7 +129,8 @@ def cover_letter_agent(jd_text, modified_resume_latex_code, cover_letter_templat
     return modified_cover_letter_latex
 
 
-def process_input(jd_input, resume_file, cover_letter_template_file, ai_model_choice, replace_resume_template, replace_coverletter_template, resume_agent_prompt_input, cover_letter_agent_prompt_input):
+def process_input(jd_input, resume_file, cover_letter_template_file, ai_model_choice, replace_resume_template, replace_coverletter_template, resume_agent_prompt_input, cover_letter_agent_prompt_input):   
+    
     # --- File Handling ---
     if resume_file and hasattr(resume_file, 'read'): # CHECK for .read() method
         resume_latex_code_content = resume_file.read().decode('utf-8')
@@ -153,7 +160,6 @@ def process_input(jd_input, resume_file, cover_letter_template_file, ai_model_ch
     cover_letter_latex_code = cover_letter_agent(jd_input, modified_resume_latex_code, cover_letter_template_latex_code, ai_model_choice, cover_letter_agent_prompt)
 
     return modified_resume_latex_code, cover_letter_latex_code
-
 
 # --- Gradio UI ---
 with gr.Blocks(title="AI Resume & Cover Letter Generator") as demo:
