@@ -90,7 +90,7 @@ def customize_resume(resume_template, job_description, prompt):
 # Function to generate cover letter with Gemini
 def generate_cover_letter(resume, job_description, prompt, template):
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(
             f"{prompt}\n\nJob Description:\n{job_description}\n\nResume:\n{resume}\n\nCover Letter Template:\n{template}"
         )
